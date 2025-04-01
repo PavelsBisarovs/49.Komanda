@@ -7,8 +7,8 @@ pygame.init()
 # -----------------------------
 # Konstantes
 # -----------------------------
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 1024
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -171,6 +171,8 @@ def alpha_beta(state, depth, alpha, beta, maximizing_player):
 # -----------------------------
 class GameController:
     def __init__(self):
+        self.message = ""
+        self.message_timer = 0
         self.state = STATE_MENU
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Spēle ar Minimax un Alpha-Beta")
@@ -323,16 +325,15 @@ class GameController:
                     else:
                         self.selected_index = index_clicked
                 else:
-                    # Varbūt noklikšķināja uz pogas?
+        # Varbūt noklikšķināja uz pogas?
                     action = self.check_action_buttons(mx, my)
                     if action and self.selected_index is not None:
-                        # Izpildām darbību
-                        self.player_action(action, self.selected_index)
-                        # Pārbaudām beigas
-                        if is_game_over(self.numbers):
-                            self.state = STATE_END
-                        else:
-                            self.current_player = AI  # dodam gājienu datoram
+                        success = self.player_action(action, self.selected_index)  # ← JAUNA RINDIŅA
+                        if success:
+                            if is_game_over(self.numbers):
+                                self.state = STATE_END
+                            else:
+                                self.current_player = AI  # tikai ja gājiens bija derīgs
                         self.selected_index = None
                         return
 
@@ -358,6 +359,10 @@ class GameController:
 
         # Zīmējam darbību pogas
         self.draw_action_buttons()
+        if self.message_timer > 0:
+            msg_text = FONT.render(self.message, True, RED)
+            self.screen.blit(msg_text, (50, 460))  # vai citu vietu, kur labi izskatās
+            self.message_timer -= 1
 
     def draw_sequence(self):
         """
@@ -392,24 +397,18 @@ class GameController:
         return None
 
     def draw_action_buttons(self):
-        """
-        Uzzīmē 3 pogas: "Paņemt", "Split 2", "Split 4".
-        """
         self.btn_take = pygame.Rect(50, 500, 100, 40)
-        self.btn_s2   = pygame.Rect(200, 500, 120, 40)
-        self.btn_s4   = pygame.Rect(350, 500, 120, 40)
+        self.btn_split = pygame.Rect(200, 500, 120, 40)
 
         pygame.draw.rect(self.screen, GRAY, self.btn_take)
-        pygame.draw.rect(self.screen, GRAY, self.btn_s2)
-        pygame.draw.rect(self.screen, GRAY, self.btn_s4)
+        pygame.draw.rect(self.screen, GRAY, self.btn_split)
 
         take_txt = FONT.render("Paņemt", True, BLACK)
-        s2_txt   = FONT.render("Split 2", True, BLACK)
-        s4_txt   = FONT.render("Split 4", True, BLACK)
+        split_txt = FONT.render("Split", True, BLACK)
 
         self.screen.blit(take_txt, take_txt.get_rect(center=self.btn_take.center))
-        self.screen.blit(s2_txt,   s2_txt.get_rect(center=self.btn_s2.center))
-        self.screen.blit(s4_txt,   s4_txt.get_rect(center=self.btn_s4.center))
+        self.screen.blit(split_txt, split_txt.get_rect(center=self.btn_split.center))
+
 
     def check_action_buttons(self, mx, my):
         """
@@ -417,42 +416,39 @@ class GameController:
         """
         if self.btn_take.collidepoint(mx, my):
             return "take"
-        if self.btn_s2.collidepoint(mx, my):
-            return "split2"
-        if self.btn_s4.collidepoint(mx, my):
-            return "split4"
+        if self.btn_split.collidepoint(mx, my):
+            return "split"
         return None
 
+
     def player_action(self, action, index):
-        """
-        Piemēro izvēlēto darbību (take/split2/split4) pie skaitļa ar norādīto indeksu.
-        """
         val = self.numbers[index]
         nums = list(self.numbers)
 
         if action == "take":
-            # Paņemam skaitli => +val cilvēka punktiem, noņemam to no virknes
             self.human_score += val
             del nums[index]
+            self.numbers = tuple(nums)
+            return True  # gājiens izdarīts
 
-        elif action == "split2":
-            # Sadalām 2 -> (1,1) bez papildu punktiem
+        elif action == "split":
             if val == 2:
                 nums[index] = 1
                 nums.insert(index+1, 1)
-            else:
-                return
-
-        elif action == "split4":
-            # Sadalām 4 -> (2,2) un +1 punkts
-            if val == 4:
+                self.numbers = tuple(nums)
+                return True
+            elif val == 4:
                 nums[index] = 2
                 nums.insert(index+1, 2)
                 self.human_score += 1
+                self.numbers = tuple(nums)
+                return True
             else:
-                return
+                self.message = "Šo skaitli nevar sadalīt"
+                self.message_timer = 90
+                return False  # Gājiens nav izdarīts
 
-        self.numbers = tuple(nums)
+
 
     def ai_move(self):
         """
